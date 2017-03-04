@@ -49,13 +49,12 @@ void web(int fd) {
     (void)write(fd, buffer, strlen(buffer));
 
     sleep(1);    /* allow socket to drain before signalling the socket is closed */
-    close(fd);
-    exit(1);
 }
 
 int main(int argc, char *argv[]) {
     int enable = 1, port, pid, listenfd, socketfd;
     socklen_t length;
+    char str[INET_ADDRSTRLEN];
     static struct sockaddr_in cli_addr; /* static = initialised to zeros */
     static struct sockaddr_in serv_addr; /* static = initialised to zeros */
     
@@ -106,21 +105,11 @@ int main(int argc, char *argv[]) {
         if ((socketfd = accept(listenfd, (struct sockaddr *)&cli_addr, &length)) < 0) {
             printf("accept error\n");
         }
-        if ((pid = fork()) < 0) {
-            printf("fork error\n");
-        } else {
-            if (pid == 0) {              /* child */
-                /* get ip */
-                char str[INET_ADDRSTRLEN];
-                inet_ntop(AF_INET, &cli_addr.sin_addr.s_addr, str, INET_ADDRSTRLEN);
-                sprintf(argv[0], "osi child: %s", str);
-                (void)close(listenfd);
-                web(socketfd);          /* never returns */
-                break;
-            } else {                    /* parent */
-                (void)close(socketfd);
-            }
-        }
+        /* get ip */
+        inet_ntop(AF_INET, &cli_addr.sin_addr.s_addr, str, INET_ADDRSTRLEN);
+        printf("request from: %s\n", str);
+        web(socketfd);
+        (void)close(socketfd);
     }
     
     return 0;
