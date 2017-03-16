@@ -1,6 +1,5 @@
 /* 
- * udpserver.c - A simple UDP echo server 
- * usage: udpserver <port>
+ * dns.c - a simple DNS replier
  */
 
 #include <stdio.h>
@@ -80,26 +79,6 @@ struct __attribute__((__packed__)) dns_request {
     unsigned char data;
 };
 
-struct __attribute__((__packed__)) dns_answer {
-    // query in C-string format
-    // need to use str_dns_convert() b4 sending
-    //char *query;
-    
-    // type of record
-    // see enum dns_record_type
-    unsigned short type;
-    
-    // probably INternet
-	unsigned short class;
-    
-    // TTL
-	unsigned int ttl;
-    
-    // data length
-	unsigned short data_len;
-    // * data here *
-};
-
 // convert DNS-style string to c-string
 char *dns_str_convert(void *in) {
     unsigned int length = 0;
@@ -157,21 +136,64 @@ struct __attribute__((__packed__)) a_response {
     unsigned int address;
 };
 
-#define endian_swap_32bit(num) ((num>>24)&0xff) | \
-                    ((num<<8)&0xff0000) | \
-                    ((num>>8)&0xff00) | \
-                    ((num<<24)&0xff000000)
-
-#define endian_swap_16bit(num) (num>>8) | (num<<8)
-
-void make_response_bytes_for_ip(void *inptr, unsigned int ipaddr) {
+void make_response_bytes_for_a(void *inptr, unsigned int ipaddr) {
     struct a_response *resp = (struct a_response *)inptr;
     resp->name = htons((unsigned short)0xc00c); // endian swapped already
-    resp->type = htons((unsigned short)0x0001); // endian swapped already
+    resp->type = htons((unsigned short)DNS_RECORD_A); // endian swapped already
     resp->class = htons((unsigned short)0x0001); // endian swapped already
     resp->ttl = htonl(0x0000012b); // not sure how to endian swap
     resp->dlen = htons((unsigned short)0x0004); // endian swapped
     resp->address = htonl(ipaddr); //
+}
+
+struct __attribute__((__packed__)) aaaa_response {
+    unsigned short name;
+    unsigned short type;
+    unsigned short class;
+    unsigned int ttl;
+    unsigned short dlen;
+    unsigned char address[16];
+};
+
+void make_response_bytes_for_aaaa(void *inptr, unsigned char *ipaddr) {
+    struct aaaa_response *resp = (struct aaaa_response *)inptr;
+    int i;
+    
+    resp->name = htons((unsigned short)0xc00c); // endian swapped already
+    resp->type = htons((unsigned short)DNS_RECORD_AAAA); // endian swapped already
+    resp->class = htons((unsigned short)0x0001); // endian swapped already
+    resp->ttl = htonl(0x0000012b); // not sure how to endian swap
+    resp->dlen = htons((unsigned short)0x0010); // endian swapped
+    
+    for (i = 0; i < 16; i++) {
+        resp->address[i] = ipaddr[i]; // when copying byte-for-byte, no endian trickery needed
+    }
+}
+
+struct __attribute__((__packed__)) txt_response {
+    unsigned short name;
+    unsigned short type;
+    unsigned short class;
+    unsigned int ttl;
+    unsigned short dlen;
+};
+
+void make_response_bytes_for_txt(void *inptr, unsigned char *text, unsigned short textlength) {
+    struct txt_response *resp = (struct txt_response *)inptr;
+    unsigned char *tmp;
+    unsigned short i;
+    
+    resp->name = htons((unsigned short)0xc00c); // endian swapped already
+    resp->type = htons((unsigned short)DNS_RECORD_TXT); // endian swapped already
+    resp->class = htons((unsigned short)0x0001); // endian swapped already
+    resp->ttl = htonl(0x0000012b); // not sure how to endian swap
+    resp->dlen = htons((unsigned short)textlength); // endian swapped
+    
+    tmp = (unsigned char *)(&(resp->dlen)) + 2; // skip past short
+    
+    for (i = 0; i < textlength; i++) {
+        tmp[i] = text[i]; // when copying byte-for-byte, no endian trickery needed
+    }
 }
 
 void hexDump (char *desc, void *addr, int len) {
@@ -364,67 +386,149 @@ int main(int argc, char **argv) {
             goto nextOne;
         }
         
-        if ((*code == DNS_RECORD_A || *code == DNS_RECORD_ANY) && (test->header).num_questions == 1) {
-            printf("Replying!\n");
-            n = 16 + strlen(temp) + 1;
+        if ((test->header).num_questions == 1) {
+            unsigned char *myNewBytes;
+            switch (*code) {
+                case DNS_RECORD_ANY:
+                case DNS_RECORD_A:
+                    printf("Replying!\n");
+                    n = 16 + strlen(temp) + 1;
+                    
+                    // copy memory + response stub for A
+                    myNewBytes = calloc(n+sizeof(struct a_response), sizeof(unsigned char));
+                    test = (struct dns_request *)myNewBytes;
+                    
+                    // switch back to endian-swapped code
+                    *code = htons(*code);
+                    
+                    // copy old stuff
+                    memcpy(myNewBytes, buf, n);
+                    
+                    // format the header
+                    (test->header).flags = htons(0x8400); // standard response, no error (endian-swapped) - don't recursively query
+                    // questions # is the same
+                    (test->header).num_answers = htons(0x0001);
+                    (test->header).num_questions = htons(0x0001);
+                    (test->header).num_authority = 0;
+                    (test->header).num_additional = 0;
+                    
+                    // throwin the ip response at the right spot
+                    make_response_bytes_for_a(myNewBytes+n, 3111756784);
             
-            // copy memory + response stub for A
-            unsigned char *myNewBytes = calloc(n+sizeof(struct a_response), sizeof(unsigned char));
-            test = (struct dns_request *)myNewBytes;
+                    // for ip response
+                    n += sizeof(struct a_response);
+                    
+                    // make_response_bytes_for_ip
+                    hexDump("send data", myNewBytes, n);
+                    
+                    n = sendto(sockfd, myNewBytes, n, 0, (struct sockaddr *) &clientaddr, clientlen);
+                    if (n < 0) printf("Failed to reply.\n");
+                    free(myNewBytes);
+                    break;
+                case DNS_RECORD_AAAA:
+                    printf("Replying!\n");
+                    n = 16 + strlen(temp) + 1;
+                    
+                    // copy memory + response stub for AAAA
+                    myNewBytes = calloc(n+sizeof(struct aaaa_response), sizeof(unsigned char));
+                    unsigned char ip6[16];
+                    test = (struct dns_request *)myNewBytes;
+                    
+                    // switch back to endian-swapped code
+                    *code = htons(*code);
+                    
+                    // copy old stuff
+                    memcpy(myNewBytes, buf, n);
+                    
+                    // format the header
+                    (test->header).flags = htons(0x8400); // standard response, no error (endian-swapped) - don't recursively query
+                    // questions # is the same
+                    (test->header).num_answers = htons(0x0001);
+                    (test->header).num_questions = htons(0x0001);
+                    (test->header).num_authority = 0;
+                    (test->header).num_additional = 0;
+                    
+                    // throwin the ip response at the right spot
+                    inet_pton(AF_INET6, "2a05:dfc7:dfc8:1d7::9428", ip6);
+                    make_response_bytes_for_aaaa(myNewBytes+n, ip6);
             
-            // switch back to endian-swapped code
-            *code = endian_swap_16bit(*code);
+                    // for ip response
+                    n += sizeof(struct aaaa_response);
+                    
+                    // make_response_bytes_for_ip
+                    hexDump("send data", myNewBytes, n);
+                    
+                    n = sendto(sockfd, myNewBytes, n, 0, (struct sockaddr *) &clientaddr, clientlen);
+                    if (n < 0) printf("Failed to reply.\n");
+                    free(myNewBytes);
+                    break;
+                case DNS_RECORD_TXT: // these don't work right now
+                    printf("Replying!\n");
+                    n = 16 + strlen(temp) + 1;
+                    
+                    char *response = "test";
+                    int resplen = strlen(response);
+                    
+                    // copy memory + response stub for TXT
+                    myNewBytes = calloc(n+sizeof(struct txt_response) + resplen, sizeof(unsigned char));
+                    test = (struct dns_request *)myNewBytes;
+                    
+                    // switch back to endian-swapped code
+                    *code = htons(*code);
+                    
+                    // copy old stuff
+                    memcpy(myNewBytes, buf, n);
+                    
+                    // format the header
+                    (test->header).flags = htons(0x8000); // standard response, no error (endian-swapped) - don't recursively query
+                    // questions # is the same
+                    (test->header).num_answers = htons(0x0001);
+                    (test->header).num_questions = htons(0x0001);
+                    (test->header).num_authority = 0;
+                    (test->header).num_additional = 0;
+                    
+                    // throwin the ip response at the right spot
+                    make_response_bytes_for_txt(myNewBytes+n, response, (unsigned short)resplen);
             
-            // copy old stuff
-            memcpy(myNewBytes, buf, n);
-            
-            // format the header
-            (test->header).flags = htons(0x8000); // standard response, no error (endian-swapped) - don't recursively query
-            // questions # is the same
-            (test->header).num_answers = htons(0x0001);
-            (test->header).num_questions = htons(0x0001);
-            (test->header).num_authority = 0;
-            (test->header).num_additional = 0;
-            
-            // throwin the ip response at the right spot
-            make_response_bytes_for_ip(myNewBytes+n, 3111756784);
-            
-            // for ip response
-            n += sizeof(struct a_response);
-            
-            // make_response_bytes_for_ip
-            hexDump("send data", myNewBytes, n);
-            
-            n = sendto(sockfd, myNewBytes, n, 0, (struct sockaddr *) &clientaddr, clientlen);
-            if (n < 0) printf("Failed to reply.\n");
-            free(myNewBytes);
-        } else {
-            // send no answers
-            printf("Replying Error!\n");
-            
-            // switch back to endian-swapped code
-            *code = htons(*code); // 6. 33. 35. 38
-            
-            // format the header
-            (test->header).flags = htons(0x8003); // standard response, not found error (endian-swapped) - don't recursively query
-            // questions # is the same
-            (test->header).num_answers = 0;
-            (test->header).num_questions = htons(0x0001);
-            (test->header).num_authority = 0;
-            (test->header).num_additional = 0;
-            
-            // make_response_bytes_for_ip
-            hexDump("send data", buf, n);
-            
-            n = sendto(sockfd, buf, n, 0, (struct sockaddr *) &clientaddr, clientlen);
-            if (n < 0) printf("Failed to reply.\n");
+                    // for ip response
+                    n += sizeof(struct txt_response) + resplen;
+                    
+                    // make_response_bytes_for_ip
+                    hexDump("send data", myNewBytes, n);
+                    
+                    n = sendto(sockfd, myNewBytes, n, 0, (struct sockaddr *) &clientaddr, clientlen);
+                    if (n < 0) printf("Failed to reply.\n");
+                    free(myNewBytes);
+                    break;
+                default:
+                    goto error_message;
+            }
+            goto nextOne;
         }
+
+        error_message:
+        // send no answers
+        printf("Replying Error!\n");
+        
+        // switch back to endian-swapped code
+        *code = htons(*code);
+        
+        // format the header
+        (test->header).flags = htons(0x8003); // standard response, not found error (endian-swapped) - don't recursively query
+        // questions # is the same
+        (test->header).num_answers = 0;
+        (test->header).num_questions = htons(0x0001);
+        (test->header).num_authority = 0;
+        (test->header).num_additional = 0;
+        
+        // make_response_bytes_for_ip
+        hexDump("send data", buf, n);
+        
+        n = sendto(sockfd, buf, n, 0, (struct sockaddr *) &clientaddr, clientlen);
+        if (n < 0) printf("Failed to reply.\n");
         
         nextOne:
         free(temp);
         temp = NULL;
-        
-        //n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *) &clientaddr, clientlen);
-        // if (n < 0) error("ERROR in sendto");
     }
 }
