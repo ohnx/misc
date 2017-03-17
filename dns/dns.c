@@ -466,7 +466,7 @@ int main(int argc, char **argv) {
                     printf("Replying!\n");
                     n = 16 + strlen(temp) + 1;
                     
-                    char *response = "test";
+                    char *response = "\024ohnx's DNS responder\030See d.masonx.ca for info";
                     int resplen = strlen(response);
                     
                     // copy memory + response stub for TXT
