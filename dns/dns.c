@@ -12,174 +12,49 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <stdint.h>
+#include "miscutil.h"
+#include "dns_parse.h"
 
 #define BUFSIZE 65535
 
-struct __attribute__((__packed__)) dns_header {
-    // transaction id 2 bytes
-    unsigned short transaction_id;
-    
-    // flags
-    //x....... ........ = Response
-    //.xxxx... ........ = Opcode
-    //......x. ........ = Truncated
-    //.......x ........ = Recursion desired
-    //........ .x...... = Z: reserved (0)
-    //........ ...x.... = Non-authenticated data OK
-    unsigned short flags;
-    
-    // # of questions
-    unsigned short num_questions;
-    
-    // # of answers
-    unsigned short num_answers;
-    
-    // # authorities
-    unsigned short num_authority;
-    
-    // # additional stuff
-    unsigned short num_additional;
-    
-    // questions/answers/etc. follow...
-};
-
-enum dns_record_type {
-    DNS_RECORD_A = 1,
-    DNS_RECORD_NS = 2,
-    DNS_RECORD_CNAME = 5,
-    DNS_RECORD_SOA = 6,
-    DNS_RECORD_PTR = 12,
-    DNS_RECORD_MX = 15,
-    DNS_RECORD_TXT = 16,
-    DNS_RECORD_AAAA = 28,
-    DNS_RECORD_SRV = 33,
-    DNS_RECORD_RRSIG = 46,
-    DNS_RECORD_ANY = 255,
-};
-
-const char *code_to_str(enum dns_record_type in) {
-    switch(in) {
-    case DNS_RECORD_A: return "A";
-    case DNS_RECORD_NS: return "NS";
-    case DNS_RECORD_CNAME: return "CNAME";
-    case DNS_RECORD_SOA: return "SOA";
-    case DNS_RECORD_PTR: return "PTR";
-    case DNS_RECORD_MX: return "MX";
-    case DNS_RECORD_TXT: return "TXT";
-    case DNS_RECORD_AAAA: return "AAAA";
-    case DNS_RECORD_SRV: return "SRV";
-    case DNS_RECORD_RRSIG: return "RRSIG";
-    case DNS_RECORD_ANY: return "ANY";
-    default: return "UNKNOWN";
-    }
-}
-
-struct __attribute__((__packed__)) dns_request {
-    struct dns_header header;
-    unsigned char data;
-};
-
-// convert DNS-style string to c-string
-char *dns_str_convert(void *in) {
-    unsigned int length = 0;
-    char *ptr = (char *)in;
-    char *ret, *tmp;
-    
-    while (*ptr != 0) {
-        length += *ptr + 1;
-        ptr += *ptr + 1;
-    }
-
-    tmp = ret = calloc(length+1, sizeof(char));
-    ptr = (unsigned char *)in;
-
-    while (*ptr != 0) {
-        memcpy(tmp, ptr+1, *ptr);
-        tmp += *ptr;
-        *(tmp++) = '.';
-        ptr += *ptr + 1;
-    }
-    return ret;
-}
-
-// convert c-style string to dns-style string
-void *str_dns_convert(unsigned char *in) {
-    unsigned int length = strlen(in) + 1;
-    unsigned char *ret, *tmp, *ptr, *dlo;
-
-    tmp = ret = calloc(length, sizeof(char));
-    ptr = (unsigned char *)in;
-
-    while (*ptr != 0) {
-        dlo = strchr(ptr, '.');
-
-        if (dlo == NULL) {
-            // does not end with a . (root)
-            break;
-        }
-
-        *tmp = dlo-ptr;
-        memcpy(++tmp, ptr, dlo-ptr);
-        tmp += dlo-ptr;
-        ptr += dlo-ptr+1;
-    }
-
-    return ret;
-}
-
-struct __attribute__((__packed__)) a_response {
-    unsigned short name;
-    unsigned short type;
-    unsigned short class;
-    unsigned int ttl;
-    unsigned short dlen;
+struct __attribute__((__packed__)) dns_answer_a {
+    struct dns_answer header;
     unsigned int address;
 };
 
 void make_response_bytes_for_a(void *inptr, unsigned int ipaddr) {
-    struct a_response *resp = (struct a_response *)inptr;
-    resp->name = htons((unsigned short)0xc00c); // endian swapped already
-    resp->type = htons((unsigned short)DNS_RECORD_A); // endian swapped already
-    resp->class = htons((unsigned short)0x0001); // endian swapped already
-    resp->ttl = htonl(0x0000012b); // not sure how to endian swap
-    resp->dlen = htons((unsigned short)0x0004); // endian swapped
+    struct dns_answer_a *resp = (struct dns_answer_a *)inptr;
+    resp->header.name = htons((unsigned short)0xc00c); // endian swapped already
+    resp->header.type = htons((unsigned short)DNS_RECORD_A); // endian swapped already
+    resp->header.class = htons((unsigned short)0x0001); // endian swapped already
+    resp->header.ttl = htonl(0x0000012b); // not sure how to endian swap
+    resp->header.dlen = htons((unsigned short)0x0004); // endian swapped
+    
     resp->address = htonl(ipaddr); //
 }
 
-struct __attribute__((__packed__)) aaaa_response {
-    unsigned short name;
-    unsigned short type;
-    unsigned short class;
-    unsigned int ttl;
-    unsigned short dlen;
+struct __attribute__((__packed__)) dns_answer_aaaa {
+    struct dns_answer header;
     unsigned char address[16];
 };
 
 void make_response_bytes_for_aaaa(void *inptr, unsigned char *ipaddr) {
-    struct aaaa_response *resp = (struct aaaa_response *)inptr;
+    struct dns_answer_aaaa *resp = (struct dns_answer_aaaa *)inptr;
     int i;
     
-    resp->name = htons((unsigned short)0xc00c); // endian swapped already
-    resp->type = htons((unsigned short)DNS_RECORD_AAAA); // endian swapped already
-    resp->class = htons((unsigned short)0x0001); // endian swapped already
-    resp->ttl = htonl(0x0000012b); // not sure how to endian swap
-    resp->dlen = htons((unsigned short)0x0010); // endian swapped
+    resp->header.name = htons((unsigned short)0xc00c); // endian swapped already
+    resp->header.type = htons((unsigned short)DNS_RECORD_AAAA); // endian swapped already
+    resp->header.class = htons((unsigned short)0x0001); // endian swapped already
+    resp->header.ttl = htonl(0x0000012b); // not sure how to endian swap
+    resp->header.dlen = htons((unsigned short)0x0010); // endian swapped
     
     for (i = 0; i < 16; i++) {
         resp->address[i] = ipaddr[i]; // when copying byte-for-byte, no endian trickery needed
     }
 }
 
-struct __attribute__((__packed__)) txt_response {
-    unsigned short name;
-    unsigned short type;
-    unsigned short class;
-    unsigned int ttl;
-    unsigned short dlen;
-};
-
 void make_response_bytes_for_txt(void *inptr, unsigned char *text, unsigned short textlength) {
-    struct txt_response *resp = (struct txt_response *)inptr;
+    struct dns_answer *resp = (struct dns_answer *)inptr;
     unsigned char *tmp;
     unsigned short i;
     
@@ -194,66 +69,6 @@ void make_response_bytes_for_txt(void *inptr, unsigned char *text, unsigned shor
     for (i = 0; i < textlength; i++) {
         tmp[i] = text[i]; // when copying byte-for-byte, no endian trickery needed
     }
-}
-
-void hexDump (char *desc, void *addr, int len) {
-    int i;
-    unsigned char buff[17];
-    unsigned char *pc = (unsigned char*)addr;
-
-    // Output description if given.
-    if (desc != NULL)
-        printf ("%s:\n", desc);
-
-    if (len == 0) {
-        printf("  ZERO LENGTH\n");
-        return;
-    }
-    if (len < 0) {
-        printf("  NEGATIVE LENGTH: %i\n",len);
-        return;
-    }
-
-    // Process every byte in the data.
-    for (i = 0; i < len; i++) {
-        // Multiple of 16 means new line (with line offset).
-
-        if ((i % 16) == 0) {
-            // Just don't print ASCII for the zeroth line.
-            if (i != 0)
-                printf ("  %s\n", buff);
-
-            // Output the offset.
-            printf ("  %04x ", i);
-        }
-
-        // Now the hex code for the specific character.
-        printf (" %02x", pc[i]);
-
-        // And store a printable ASCII character for later.
-        if ((pc[i] < 0x20) || (pc[i] > 0x7e))
-            buff[i % 16] = '.';
-        else
-            buff[i % 16] = pc[i];
-        buff[(i % 16) + 1] = '\0';
-    }
-
-    // Pad out last line if not exactly 16 characters.
-    while ((i % 16) != 0) {
-        printf ("   ");
-        i++;
-    }
-
-    // And print the final ASCII bit.
-    printf ("  %s\n", buff);
-}
-
-/*
- * error - wrapper for perror
- */
-void error(char *msg) {
-  perror(msg);
-  exit(1);
 }
 
 int main(int argc, char **argv) {
@@ -278,12 +93,16 @@ int main(int argc, char **argv) {
     /* 
     * check command line arguments 
     */
-    if (argc != 2) {
-        fprintf(stderr, "usage: %s <port>\n", argv[0]);
+    if (argc != 2 && argc != 3) {
+        fprintf(stderr, "usage: %s <port> [input file]\n", argv[0]);
         exit(1);
     }
     
     portno = atoi(argv[1]);
+    
+    if (argc == 3) {
+        printf("Warning: DNS from file not yet implemented\n");
+    }
     
     /* 
     * socket: create the parent socket 
@@ -388,6 +207,7 @@ int main(int argc, char **argv) {
         
         if ((test->header).num_questions == 1) {
             unsigned char *myNewBytes;
+            int ip4;
             switch (*code) {
                 case DNS_RECORD_ANY:
                 case DNS_RECORD_A:
@@ -395,7 +215,7 @@ int main(int argc, char **argv) {
                     n = 16 + strlen(temp) + 1;
                     
                     // copy memory + response stub for A
-                    myNewBytes = calloc(n+sizeof(struct a_response), sizeof(unsigned char));
+                    myNewBytes = calloc(n+sizeof(struct dns_answer_a), sizeof(unsigned char));
                     test = (struct dns_request *)myNewBytes;
                     
                     // switch back to endian-swapped code
@@ -412,11 +232,14 @@ int main(int argc, char **argv) {
                     (test->header).num_authority = 0;
                     (test->header).num_additional = 0;
                     
+                    if (strstr(temp, "0x2f.cf") != NULL) ip4 = 918406927;
+                    else ip4 = 3111756784;
+                    
                     // throwin the ip response at the right spot
-                    make_response_bytes_for_a(myNewBytes+n, 3111756784);
+                    make_response_bytes_for_a(myNewBytes+n, ip4);
             
                     // for ip response
-                    n += sizeof(struct a_response);
+                    n += sizeof(struct dns_answer_a);
                     
                     // make_response_bytes_for_ip
                     hexDump("send data", myNewBytes, n);
@@ -430,7 +253,7 @@ int main(int argc, char **argv) {
                     n = 16 + strlen(temp) + 1;
                     
                     // copy memory + response stub for AAAA
-                    myNewBytes = calloc(n+sizeof(struct aaaa_response), sizeof(unsigned char));
+                    myNewBytes = calloc(n+sizeof(struct dns_answer_aaaa), sizeof(unsigned char));
                     unsigned char ip6[16];
                     test = (struct dns_request *)myNewBytes;
                     
@@ -453,7 +276,7 @@ int main(int argc, char **argv) {
                     make_response_bytes_for_aaaa(myNewBytes+n, ip6);
             
                     // for ip response
-                    n += sizeof(struct aaaa_response);
+                    n += sizeof(struct dns_answer_aaaa);
                     
                     // make_response_bytes_for_ip
                     hexDump("send data", myNewBytes, n);
@@ -470,7 +293,7 @@ int main(int argc, char **argv) {
                     int resplen = strlen(response);
                     
                     // copy memory + response stub for TXT
-                    myNewBytes = calloc(n+sizeof(struct txt_response) + resplen, sizeof(unsigned char));
+                    myNewBytes = calloc(n+sizeof(struct dns_answer) + resplen, sizeof(unsigned char));
                     test = (struct dns_request *)myNewBytes;
                     
                     // switch back to endian-swapped code
@@ -491,7 +314,7 @@ int main(int argc, char **argv) {
                     make_response_bytes_for_txt(myNewBytes+n, response, (unsigned short)resplen);
             
                     // for ip response
-                    n += sizeof(struct txt_response) + resplen;
+                    n += sizeof(struct dns_answer) + resplen;
                     
                     // make_response_bytes_for_ip
                     hexDump("send data", myNewBytes, n);
@@ -503,6 +326,8 @@ int main(int argc, char **argv) {
                 default:
                     goto error_message;
             }
+            free(temp);
+            temp = NULL;
             goto nextOne;
         }
 
