@@ -205,7 +205,7 @@ hexDump:
 	.size	hexDump, .-hexDump
 	.section	.rodata
 .LC7:
-	.string	"s: `%p`; a: %d; b: %d\n"
+	.string	"s: %p `%s`; a: %d; b: %d\n"
 	.text
 	.globl	test_func
 	.type	test_func, @function
@@ -223,9 +223,11 @@ test_func:
 	movl	%esi, -12(%rbp)
 	movl	%edx, -16(%rbp)
 	.loc 1 60 0
-	movl	-16(%rbp), %ecx
-	movl	-12(%rbp), %edx
+	movl	-16(%rbp), %esi
+	movl	-12(%rbp), %ecx
+	movq	-8(%rbp), %rdx
 	movq	-8(%rbp), %rax
+	movl	%esi, %r8d
 	movq	%rax, %rsi
 	movl	$.LC7, %edi
 	movl	$0, %eax
@@ -239,6 +241,10 @@ test_func:
 	.cfi_endproc
 .LFE3:
 	.size	test_func, .-test_func
+	.section	.rodata
+.LC9:
+	.string	"test string"
+	.text
 	.globl	call_function_code_dbl
 	.type	call_function_code_dbl, @function
 call_function_code_dbl:
@@ -250,85 +256,35 @@ call_function_code_dbl:
 	.cfi_offset 6, -16
 	movq	%rsp, %rbp
 	.cfi_def_cfa_register 6
-	movq	%rdi, -40(%rbp)
-	movq	%rsi, -48(%rbp)
-	movq	%rdx, -56(%rbp)
-	.loc 1 67 0
-	pxor	%xmm0, %xmm0
-	movsd	%xmm0, -16(%rbp)
-	.loc 1 70 0
-	movq	-48(%rbp), %rax
-	shrq	%rax
-	movq	%rax, -8(%rbp)
-	.loc 1 73 0
+	pushq	%rbx
+	.cfi_offset 3, -24
+	movq	%rdi, -32(%rbp)
+	movq	%rsi, -40(%rbp)
+	movq	%rdx, -48(%rbp)
+	.loc 1 66 0
+	movq	$.LC9, -24(%rbp)
+	.loc 1 69 0
+	movq	-32(%rbp), %rdx
+	movq	-24(%rbp), %rcx
 #APP
-# 73 "runfunc.c" 1
+# 69 "runfunc.c" 1
 	pushq %rbp
-	mov %rsp, %rbp
-# 0 "" 2
-	.loc 1 82 0
-#NO_APP
-	movq	$0, -24(%rbp)
-	jmp	.L20
-.L21:
-	.loc 1 87 0 discriminator 3
-	movq	-24(%rbp), %rax
-	leaq	(%rax,%rax), %rdx
-	movq	-56(%rbp), %rax
-	addq	%rdx, %rax
-	movzwl	(%rax), %eax
-	.loc 1 83 0 discriminator 3
-#APP
-# 83 "runfunc.c" 1
-	push %ax
-	
-# 0 "" 2
-	.loc 1 82 0 discriminator 3
-#NO_APP
-	addq	$1, -24(%rbp)
-.L20:
-	.loc 1 82 0 is_stmt 0 discriminator 1
-	movq	-24(%rbp), %rax
-	cmpq	-8(%rbp), %rax
-	jb	.L21
-	.loc 1 92 0 is_stmt 1
-	movq	-40(%rbp), %rax
-#APP
-# 92 "runfunc.c" 1
-	call *%rax
-	movq %xmm0, %rax
-	
-# 0 "" 2
-#NO_APP
-	movq	%rax, -16(%rbp)
-	.loc 1 104 0
-	movq	$0, -24(%rbp)
-	jmp	.L22
-.L23:
-	.loc 1 105 0 discriminator 3
-#APP
-# 105 "runfunc.c" 1
-	pop %ax
-	
-# 0 "" 2
-	.loc 1 104 0 discriminator 3
-#NO_APP
-	addq	$1, -24(%rbp)
-.L22:
-	.loc 1 104 0 is_stmt 0 discriminator 1
-	movq	-24(%rbp), %rax
-	cmpq	-8(%rbp), %rax
-	jb	.L23
-	.loc 1 114 0 is_stmt 1
-#APP
-# 114 "runfunc.c" 1
+	mov %rsp, %rsp
+	pushq %rcx
+	pushq $5
+	pushq $4
+	call *%rdx
+	movq %xmm0, %rdx
+	addq $24, %rsp
 	popq %rbp
 	
 # 0 "" 2
-	.loc 1 120 0
 #NO_APP
+	movq	%rdx, -16(%rbp)
+	.loc 1 93 0
 	movsd	-16(%rbp), %xmm0
-	.loc 1 121 0
+	.loc 1 94 0
+	popq	%rbx
 	popq	%rbp
 	.cfi_def_cfa 7, 8
 	ret
@@ -336,20 +292,20 @@ call_function_code_dbl:
 .LFE4:
 	.size	call_function_code_dbl, .-call_function_code_dbl
 	.section	.rodata
-.LC10:
+.LC11:
 	.string	"Failed to open self: %s\n"
 	.align 8
-.LC11:
+.LC12:
 	.string	"Failed to find function `%s`: %s\n"
 	.align 8
-.LC12:
+.LC13:
 	.string	"Hello friends, I am calling function now. Address is %p, arg#%d, arg value start is %p\n"
 	.text
 	.globl	runfunc_dbl
 	.type	runfunc_dbl, @function
 runfunc_dbl:
 .LFB5:
-	.loc 1 123 0
+	.loc 1 96 0
 	.cfi_startproc
 	pushq	%rbp
 	.cfi_def_cfa_offset 16
@@ -360,61 +316,61 @@ runfunc_dbl:
 	movq	%rdi, -40(%rbp)
 	movl	%esi, -44(%rbp)
 	movq	%rdx, -56(%rbp)
-	.loc 1 125 0
+	.loc 1 98 0
 	pxor	%xmm0, %xmm0
 	movsd	%xmm0, -24(%rbp)
-	.loc 1 128 0
+	.loc 1 101 0
 	movl	$1, %esi
 	movl	$0, %edi
 	call	dlopen
 	movq	%rax, -16(%rbp)
-	.loc 1 129 0
+	.loc 1 102 0
 	cmpq	$0, -16(%rbp)
-	jne	.L26
-	.loc 1 130 0
+	jne	.L22
+	.loc 1 103 0
 	call	dlerror
 	movq	%rax, %rdx
 	movq	stderr(%rip), %rax
-	movl	$.LC10, %esi
+	movl	$.LC11, %esi
 	movq	%rax, %rdi
 	movl	$0, %eax
 	call	fprintf
-	.loc 1 131 0
+	.loc 1 104 0
 	movl	$1, %edi
 	call	exit
-.L26:
-	.loc 1 135 0
+.L22:
+	.loc 1 108 0
 	movq	-40(%rbp), %rdx
 	movq	-16(%rbp), %rax
 	movq	%rdx, %rsi
 	movq	%rax, %rdi
 	call	dlsym
 	movq	%rax, -8(%rbp)
-	.loc 1 136 0
+	.loc 1 109 0
 	cmpq	$0, -8(%rbp)
-	jne	.L27
-	.loc 1 137 0
+	jne	.L23
+	.loc 1 110 0
 	call	dlerror
 	movq	%rax, %rcx
 	movq	stderr(%rip), %rax
 	movq	-40(%rbp), %rdx
-	movl	$.LC11, %esi
+	movl	$.LC12, %esi
 	movq	%rax, %rdi
 	movl	$0, %eax
 	call	fprintf
-	.loc 1 138 0
+	.loc 1 111 0
 	movl	$1, %edi
 	call	exit
-.L27:
-	.loc 1 141 0
+.L23:
+	.loc 1 114 0
 	movq	-56(%rbp), %rcx
 	movl	-44(%rbp), %edx
 	movq	-8(%rbp), %rax
 	movq	%rax, %rsi
-	movl	$.LC12, %edi
+	movl	$.LC13, %edi
 	movl	$0, %eax
 	call	printf
-	.loc 1 143 0
+	.loc 1 116 0
 	movl	-44(%rbp), %eax
 	movslq	%eax, %rcx
 	movq	-56(%rbp), %rdx
@@ -424,13 +380,13 @@ runfunc_dbl:
 	call	call_function_code_dbl
 	movq	%xmm0, %rax
 	movq	%rax, -24(%rbp)
-	.loc 1 146 0
+	.loc 1 119 0
 	movq	-16(%rbp), %rax
 	movq	%rax, %rdi
 	call	dlclose
-	.loc 1 147 0
+	.loc 1 120 0
 	movsd	-24(%rbp), %xmm0
-	.loc 1 148 0
+	.loc 1 121 0
 	leave
 	.cfi_def_cfa 7, 8
 	ret
@@ -438,25 +394,25 @@ runfunc_dbl:
 .LFE5:
 	.size	runfunc_dbl, .-runfunc_dbl
 	.section	.rodata
-.LC13:
+.LC14:
 	.string	"Hello World!"
 	.align 8
-.LC14:
-	.string	"funcargs is %ld large. strarg is at %p\n"
 .LC15:
-	.string	"strarg"
+	.string	"funcargs is %ld large. strarg is at %p\n"
 .LC16:
-	.string	"test_func"
+	.string	"strarg"
 .LC17:
-	.string	"number"
+	.string	"test_func"
 .LC18:
+	.string	"number"
+.LC19:
 	.string	"lmao %g\n"
 	.text
 	.globl	main
 	.type	main, @function
 main:
 .LFB6:
-	.loc 1 161 0
+	.loc 1 134 0
 	.cfi_startproc
 	pushq	%rbp
 	.cfi_def_cfa_offset 16
@@ -464,33 +420,33 @@ main:
 	movq	%rsp, %rbp
 	.cfi_def_cfa_register 6
 	subq	$64, %rsp
-	.loc 1 161 0
+	.loc 1 134 0
 	movq	%fs:40, %rax
 	movq	%rax, -8(%rbp)
 	xorl	%eax, %eax
-	.loc 1 164 0
-	movq	$.LC13, -40(%rbp)
-	.loc 1 166 0
+	.loc 1 137 0
+	movq	$.LC14, -40(%rbp)
+	.loc 1 139 0
 	movq	-40(%rbp), %rax
 	movq	%rax, -32(%rbp)
-	.loc 1 167 0
+	.loc 1 140 0
 	movl	$10, -24(%rbp)
-	.loc 1 168 0
+	.loc 1 141 0
 	movl	$13, -20(%rbp)
-	.loc 1 170 0
+	.loc 1 143 0
 	leaq	-40(%rbp), %rax
 	movq	%rax, %rdx
 	movl	$16, %esi
-	movl	$.LC14, %edi
+	movl	$.LC15, %edi
 	movl	$0, %eax
 	call	printf
-	.loc 1 171 0
+	.loc 1 144 0
 	leaq	-32(%rbp), %rax
 	movl	$16, %edx
 	movq	%rax, %rsi
-	movl	$.LC15, %edi
+	movl	$.LC16, %edi
 	call	hexDump
-	.loc 1 172 0
+	.loc 1 145 0
 	movl	-20(%rbp), %edx
 	movl	-24(%rbp), %ecx
 	movq	-32(%rbp), %rax
@@ -499,35 +455,35 @@ main:
 	call	test_func
 	movq	%xmm0, %rax
 	movq	%rax, -48(%rbp)
-	.loc 1 174 0
+	.loc 1 147 0
 	leaq	-32(%rbp), %rax
 	movq	%rax, %rdx
 	movl	$16, %esi
-	movl	$.LC16, %edi
+	movl	$.LC17, %edi
 	call	runfunc_dbl
 	movq	%xmm0, %rax
 	movq	%rax, -48(%rbp)
-	.loc 1 175 0
+	.loc 1 148 0
 	leaq	-48(%rbp), %rax
 	movl	$8, %edx
 	movq	%rax, %rsi
-	movl	$.LC17, %edi
+	movl	$.LC18, %edi
 	call	hexDump
-	.loc 1 176 0
+	.loc 1 149 0
 	movq	-48(%rbp), %rax
 	movq	%rax, -56(%rbp)
 	movsd	-56(%rbp), %xmm0
-	movl	$.LC18, %edi
+	movl	$.LC19, %edi
 	movl	$1, %eax
 	call	printf
-	.loc 1 177 0
+	.loc 1 150 0
 	movl	$0, %eax
-	.loc 1 178 0
+	.loc 1 151 0
 	movq	-8(%rbp), %rcx
 	xorq	%fs:40, %rcx
-	je	.L31
+	je	.L27
 	call	__stack_chk_fail
-.L31:
+.L27:
 	leave
 	.cfi_def_cfa 7, 8
 	ret
@@ -547,7 +503,7 @@ main:
 	.file 5 "/usr/include/stdio.h"
 	.section	.debug_info,"",@progbits
 .Ldebug_info0:
-	.long	0x4e3
+	.long	0x4d6
 	.value	0x4
 	.long	.Ldebug_abbrev0
 	.byte	0x8
@@ -873,24 +829,24 @@ main:
 	.long	.LASF48
 	.byte	0x10
 	.byte	0x1
-	.byte	0x9b
+	.byte	0x80
 	.long	0x2d0
 	.uleb128 0xf
 	.string	"str"
 	.byte	0x1
-	.byte	0x9c
+	.byte	0x81
 	.long	0x8f
 	.byte	0
 	.uleb128 0xf
 	.string	"a"
 	.byte	0x1
-	.byte	0x9d
+	.byte	0x82
 	.long	0x62
 	.byte	0x8
 	.uleb128 0xf
 	.string	"b"
 	.byte	0x1
-	.byte	0x9e
+	.byte	0x83
 	.long	0x62
 	.byte	0xc
 	.byte	0
@@ -1010,7 +966,7 @@ main:
 	.quad	.LFE4-.LFB4
 	.uleb128 0x1
 	.byte	0x9c
-	.long	0x418
+	.long	0x40b
 	.uleb128 0x12
 	.string	"f"
 	.byte	0x1
@@ -1018,7 +974,7 @@ main:
 	.long	0x8d
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -56
+	.sleb128 -48
 	.uleb128 0x11
 	.long	.LASF55
 	.byte	0x1
@@ -1026,31 +982,23 @@ main:
 	.long	0x2d
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -64
+	.sleb128 -56
 	.uleb128 0x11
 	.long	.LASF56
 	.byte	0x1
 	.byte	0x41
 	.long	0x29c
-	.uleb128 0x3
-	.byte	0x91
-	.sleb128 -72
-	.uleb128 0x13
-	.string	"i"
-	.byte	0x1
-	.byte	0x42
-	.long	0x2d
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -40
+	.sleb128 -64
 	.uleb128 0x14
 	.long	.LASF57
 	.byte	0x1
 	.byte	0x42
-	.long	0x2d
+	.long	0x283
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -24
+	.sleb128 -40
 	.uleb128 0x13
 	.string	"ret"
 	.byte	0x1
@@ -1063,17 +1011,17 @@ main:
 	.uleb128 0x15
 	.long	.LASF58
 	.byte	0x1
-	.byte	0x7b
+	.byte	0x60
 	.long	0x39e
 	.quad	.LFB5
 	.quad	.LFE5-.LFB5
 	.uleb128 0x1
 	.byte	0x9c
-	.long	0x48f
+	.long	0x482
 	.uleb128 0x11
 	.long	.LASF59
 	.byte	0x1
-	.byte	0x7b
+	.byte	0x60
 	.long	0x283
 	.uleb128 0x2
 	.byte	0x91
@@ -1081,7 +1029,7 @@ main:
 	.uleb128 0x11
 	.long	.LASF55
 	.byte	0x1
-	.byte	0x7b
+	.byte	0x60
 	.long	0x62
 	.uleb128 0x2
 	.byte	0x91
@@ -1089,7 +1037,7 @@ main:
 	.uleb128 0x11
 	.long	.LASF56
 	.byte	0x1
-	.byte	0x7b
+	.byte	0x60
 	.long	0x29c
 	.uleb128 0x3
 	.byte	0x91
@@ -1097,7 +1045,7 @@ main:
 	.uleb128 0x14
 	.long	.LASF60
 	.byte	0x1
-	.byte	0x7c
+	.byte	0x61
 	.long	0x8d
 	.uleb128 0x2
 	.byte	0x91
@@ -1105,7 +1053,7 @@ main:
 	.uleb128 0x14
 	.long	.LASF61
 	.byte	0x1
-	.byte	0x7c
+	.byte	0x61
 	.long	0x8d
 	.uleb128 0x2
 	.byte	0x91
@@ -1113,7 +1061,7 @@ main:
 	.uleb128 0x14
 	.long	.LASF62
 	.byte	0x1
-	.byte	0x7d
+	.byte	0x62
 	.long	0x39e
 	.uleb128 0x2
 	.byte	0x91
@@ -1122,17 +1070,17 @@ main:
 	.uleb128 0x17
 	.long	.LASF64
 	.byte	0x1
-	.byte	0xa1
+	.byte	0x86
 	.long	0x62
 	.quad	.LFB6
 	.quad	.LFE6-.LFB6
 	.uleb128 0x1
 	.byte	0x9c
-	.long	0x4db
+	.long	0x4ce
 	.uleb128 0x14
 	.long	.LASF65
 	.byte	0x1
-	.byte	0xa2
+	.byte	0x87
 	.long	0x2a3
 	.uleb128 0x2
 	.byte	0x91
@@ -1140,7 +1088,7 @@ main:
 	.uleb128 0x14
 	.long	.LASF66
 	.byte	0x1
-	.byte	0xa3
+	.byte	0x88
 	.long	0x39e
 	.uleb128 0x2
 	.byte	0x91
@@ -1148,7 +1096,7 @@ main:
 	.uleb128 0x14
 	.long	.LASF67
 	.byte	0x1
-	.byte	0xa4
+	.byte	0x89
 	.long	0x8f
 	.uleb128 0x2
 	.byte	0x91
@@ -1542,6 +1490,8 @@ main:
 	.string	"size_t"
 .LASF31:
 	.string	"_shortbuf"
+.LASF57:
+	.string	"test_str"
 .LASF19:
 	.string	"_IO_buf_base"
 .LASF47:
@@ -1604,8 +1554,6 @@ main:
 	.string	"_flags2"
 .LASF39:
 	.string	"_mode"
-.LASF57:
-	.string	"arg_sa"
 .LASF70:
 	.string	"/home/cloud9/workspace/misc/c_utils/runfunc"
 .LASF63:

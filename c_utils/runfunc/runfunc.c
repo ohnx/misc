@@ -57,74 +57,43 @@ void hexDump (char *desc, void *addr, int len) {
 
 
 double test_func(const char *s, int a, int b) {
-    printf("s: `%p`; a: %d; b: %d\n", s, a, b);
+    printf("s: %p `%s`; a: %d; b: %d\n", s, s, a, b);
     return 10.0f;
 }
 
-/* call a cdecl function */
+/*
+ * call a x86-64 cdecl function
+ * 
+ * cdecl specifies that the first few program args are, in order:
+ * `rdi, rsi, rdx, rcx, r8, r9`.
+ * further args are passed in the stack.
+ */
 double call_function_code_dbl(void *f, size_t arg_s, const void *arg_v) {
-#if 0
+    const char *test_str = "test string";
+    double ret;
+
     asm __volatile__ (
+        /* create new stack frame */
         "pushq %%rbp"           "\n\t"
         "mov %%rsp, %%rsp"      "\n\t"
-        /* for loop */
+
+        /* push the right items */
+        "mov %2, %%rdi" /* pointer */"\n\t"
+        "mov $5, %%rsi" /* a */      "\n\t"
+        "mov $4, %%rdx" /* b */      "\n\t"
+
+        /* call function */
+        "call *%1"              "\n\t"
+        "movq %%xmm0, %0"       "\n\t"
+        
+        /* cleanup */
         
         
-    );
-#endif
-    size_t i, arg_sa;
-    double ret = 0;
-
-
-    /* at this point, we can no longer call external functions */
-    arg_sa = arg_s / 2;
-
-    /* make new call frame */
-    asm __volatile__ (
-        "pushq %%rbp"              "\n\t"
-        "mov %%rsp, %%rbp"
-        : /* no output */
-        : /* no input */
-        : /* technically ebp gets clobbered but we don't mention it to gcc ;) */
-    );
-
-    /* Copy all the parameters into the stack */
-    for (i = 0; i < arg_sa; i++) {
-        asm __volatile__ (
-            /* push a word of data (8 bits) */
-            "push %0"              "\n\t"
-            : /* no output */
-            : "r"(*(((short *) arg_v) + i)) /* value of this byte */
-        );
-    }
-
-    /* Call the function */
-    asm __volatile__ (
-        /* call the function */
-        "call *%1"           "\n\t"
-        /* copy value of rax (64-bit return value) to ret */
-        "movq %%xmm0, %0"    "\n\t"
-        : "=r"(ret) /* store returned value xmm0 (output for SSE/floating-point) in ret */
-        : "r"(f) /* input function location stored in rax (input) */
-        : "xmm0"
-    );
-
-    /* Clean up */
-    /* pop all parameters from stack */
-    for (i = 0; i < arg_sa; i++) {
-        asm __volatile__ (
-            /* push a word of data (8 bits) */
-            "pop %%ax"              "\n\t"
-            : /* no output */
-            : /* no input */
-            : "ax"
-        );
-    }
-    
-    asm __volatile (
-        /* restore old call frame */
-        "popq %%rbp"           "\n\t"
-        :::
+        /* restore old stack frame */
+        "popq %%rbp"            "\n\t"
+        : "=r"(ret)
+        : "r"(f), "r"(test_str)
+        : "rax", "rbx", "rdi", "rsi", "rdx", "xmm0"
     );
 
     return ret;
