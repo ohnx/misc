@@ -1,0 +1,3 @@
+dynamically load and run a function in C
+
+ie, runfunc("function name", # vars, vars...)
