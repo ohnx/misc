@@ -203,10 +203,6 @@ hexDump:
 	.cfi_endproc
 .LFE2:
 	.size	hexDump, .-hexDump
-	.section	.rodata
-.LC7:
-	.string	"s: %p `%s`; a: %d; b: %d\n"
-	.text
 	.globl	test_func
 	.type	test_func, @function
 test_func:
@@ -218,38 +214,25 @@ test_func:
 	.cfi_offset 6, -16
 	movq	%rsp, %rbp
 	.cfi_def_cfa_register 6
-	subq	$16, %rsp
-	movq	%rdi, -8(%rbp)
-	movl	%esi, -12(%rbp)
-	movl	%edx, -16(%rbp)
+	movsd	%xmm0, -8(%rbp)
+	movsd	%xmm1, -16(%rbp)
+	movsd	%xmm2, -24(%rbp)
 	.loc 1 60 0
-	movl	-16(%rbp), %esi
-	movl	-12(%rbp), %ecx
-	movq	-8(%rbp), %rdx
-	movq	-8(%rbp), %rax
-	movl	%esi, %r8d
-	movq	%rax, %rsi
-	movl	$.LC7, %edi
-	movl	$0, %eax
-	call	printf
+	movsd	-8(%rbp), %xmm0
+	addsd	-16(%rbp), %xmm0
+	addsd	-24(%rbp), %xmm0
 	.loc 1 61 0
-	movsd	.LC8(%rip), %xmm0
-	.loc 1 62 0
-	leave
+	popq	%rbp
 	.cfi_def_cfa 7, 8
 	ret
 	.cfi_endproc
 .LFE3:
 	.size	test_func, .-test_func
-	.section	.rodata
-.LC9:
-	.string	"test string"
-	.text
 	.globl	call_function_code_dbl
 	.type	call_function_code_dbl, @function
 call_function_code_dbl:
 .LFB4:
-	.loc 1 65 0
+	.loc 1 70 0
 	.cfi_startproc
 	pushq	%rbp
 	.cfi_def_cfa_offset 16
@@ -261,29 +244,25 @@ call_function_code_dbl:
 	movq	%rdi, -32(%rbp)
 	movq	%rsi, -40(%rbp)
 	movq	%rdx, -48(%rbp)
-	.loc 1 66 0
-	movq	$.LC9, -24(%rbp)
-	.loc 1 69 0
-	movq	-32(%rbp), %rdx
-	movq	-24(%rbp), %rcx
+	.loc 1 73 0
+	movq	-32(%rbp), %rcx
 #APP
-# 69 "runfunc.c" 1
+# 73 "runfunc.c" 1
 	pushq %rbp
 	mov %rsp, %rsp
-	pushq %rcx
-	pushq $5
-	pushq $4
-	call *%rdx
-	movq %xmm0, %rdx
-	addq $24, %rsp
+	mov $3, %rdi
+	mov $5, %rsi
+	mov $4, %rdx
+	call *%rcx
+	movq %xmm0, %rcx
 	popq %rbp
 	
 # 0 "" 2
 #NO_APP
-	movq	%rdx, -16(%rbp)
-	.loc 1 93 0
+	movq	%rcx, -16(%rbp)
+	.loc 1 97 0
 	movsd	-16(%rbp), %xmm0
-	.loc 1 94 0
+	.loc 1 98 0
 	popq	%rbx
 	popq	%rbp
 	.cfi_def_cfa 7, 8
@@ -305,29 +284,40 @@ call_function_code_dbl:
 	.type	runfunc_dbl, @function
 runfunc_dbl:
 .LFB5:
-	.loc 1 96 0
+	.loc 1 100 0
 	.cfi_startproc
 	pushq	%rbp
 	.cfi_def_cfa_offset 16
 	.cfi_offset 6, -16
 	movq	%rsp, %rbp
 	.cfi_def_cfa_register 6
-	subq	$64, %rsp
-	movq	%rdi, -40(%rbp)
-	movl	%esi, -44(%rbp)
-	movq	%rdx, -56(%rbp)
-	.loc 1 98 0
+	subq	$96, %rsp
+	movq	%rdi, -72(%rbp)
+	movl	%esi, -76(%rbp)
+	movq	%rdx, -88(%rbp)
+	.loc 1 100 0
+	movq	%fs:40, %rax
+	movq	%rax, -8(%rbp)
+	xorl	%eax, %eax
+	.loc 1 102 0
 	pxor	%xmm0, %xmm0
+	movsd	%xmm0, -56(%rbp)
+	.loc 1 104 0
+	movsd	.LC8(%rip), %xmm0
+	movsd	%xmm0, -32(%rbp)
+	movsd	.LC9(%rip), %xmm0
 	movsd	%xmm0, -24(%rbp)
-	.loc 1 101 0
+	movsd	.LC10(%rip), %xmm0
+	movsd	%xmm0, -16(%rbp)
+	.loc 1 107 0
 	movl	$1, %esi
 	movl	$0, %edi
 	call	dlopen
-	movq	%rax, -16(%rbp)
-	.loc 1 102 0
-	cmpq	$0, -16(%rbp)
+	movq	%rax, -48(%rbp)
+	.loc 1 108 0
+	cmpq	$0, -48(%rbp)
 	jne	.L22
-	.loc 1 103 0
+	.loc 1 109 0
 	call	dlerror
 	movq	%rax, %rdx
 	movq	stderr(%rip), %rax
@@ -335,58 +325,61 @@ runfunc_dbl:
 	movq	%rax, %rdi
 	movl	$0, %eax
 	call	fprintf
-	.loc 1 104 0
+	.loc 1 110 0
 	movl	$1, %edi
 	call	exit
 .L22:
-	.loc 1 108 0
-	movq	-40(%rbp), %rdx
-	movq	-16(%rbp), %rax
+	.loc 1 114 0
+	movq	-72(%rbp), %rdx
+	movq	-48(%rbp), %rax
 	movq	%rdx, %rsi
 	movq	%rax, %rdi
 	call	dlsym
-	movq	%rax, -8(%rbp)
-	.loc 1 109 0
-	cmpq	$0, -8(%rbp)
+	movq	%rax, -40(%rbp)
+	.loc 1 115 0
+	cmpq	$0, -40(%rbp)
 	jne	.L23
-	.loc 1 110 0
+	.loc 1 116 0
 	call	dlerror
 	movq	%rax, %rcx
 	movq	stderr(%rip), %rax
-	movq	-40(%rbp), %rdx
+	movq	-72(%rbp), %rdx
 	movl	$.LC12, %esi
 	movq	%rax, %rdi
 	movl	$0, %eax
 	call	fprintf
-	.loc 1 111 0
+	.loc 1 117 0
 	movl	$1, %edi
 	call	exit
 .L23:
-	.loc 1 114 0
-	movq	-56(%rbp), %rcx
-	movl	-44(%rbp), %edx
-	movq	-8(%rbp), %rax
+	.loc 1 120 0
+	movq	-88(%rbp), %rcx
+	movl	-76(%rbp), %edx
+	movq	-40(%rbp), %rax
 	movq	%rax, %rsi
 	movl	$.LC13, %edi
 	movl	$0, %eax
 	call	printf
-	.loc 1 116 0
-	movl	-44(%rbp), %eax
-	movslq	%eax, %rcx
-	movq	-56(%rbp), %rdx
-	movq	-8(%rbp), %rax
-	movq	%rcx, %rsi
+	.loc 1 122 0
+	leaq	-32(%rbp), %rdx
+	movq	-40(%rbp), %rax
+	movl	$3, %esi
 	movq	%rax, %rdi
 	call	call_function_code_dbl
 	movq	%xmm0, %rax
-	movq	%rax, -24(%rbp)
-	.loc 1 119 0
-	movq	-16(%rbp), %rax
+	movq	%rax, -56(%rbp)
+	.loc 1 125 0
+	movq	-48(%rbp), %rax
 	movq	%rax, %rdi
 	call	dlclose
-	.loc 1 120 0
-	movsd	-24(%rbp), %xmm0
-	.loc 1 121 0
+	.loc 1 126 0
+	movsd	-56(%rbp), %xmm0
+	.loc 1 127 0
+	movq	-8(%rbp), %rax
+	xorq	%fs:40, %rax
+	je	.L25
+	call	__stack_chk_fail
+.L25:
 	leave
 	.cfi_def_cfa 7, 8
 	ret
@@ -394,96 +387,40 @@ runfunc_dbl:
 .LFE5:
 	.size	runfunc_dbl, .-runfunc_dbl
 	.section	.rodata
-.LC14:
-	.string	"Hello World!"
-	.align 8
-.LC15:
-	.string	"funcargs is %ld large. strarg is at %p\n"
 .LC16:
-	.string	"strarg"
-.LC17:
-	.string	"test_func"
-.LC18:
-	.string	"number"
-.LC19:
 	.string	"lmao %g\n"
 	.text
 	.globl	main
 	.type	main, @function
 main:
 .LFB6:
-	.loc 1 134 0
+	.loc 1 140 0
 	.cfi_startproc
 	pushq	%rbp
 	.cfi_def_cfa_offset 16
 	.cfi_offset 6, -16
 	movq	%rsp, %rbp
 	.cfi_def_cfa_register 6
-	subq	$64, %rsp
-	.loc 1 134 0
-	movq	%fs:40, %rax
-	movq	%rax, -8(%rbp)
-	xorl	%eax, %eax
-	.loc 1 137 0
-	movq	$.LC14, -40(%rbp)
-	.loc 1 139 0
-	movq	-40(%rbp), %rax
-	movq	%rax, -32(%rbp)
-	.loc 1 140 0
-	movl	$10, -24(%rbp)
-	.loc 1 141 0
-	movl	$13, -20(%rbp)
+	subq	$32, %rsp
 	.loc 1 143 0
-	leaq	-40(%rbp), %rax
-	movq	%rax, %rdx
-	movl	$16, %esi
-	movl	$.LC15, %edi
-	movl	$0, %eax
-	call	printf
-	.loc 1 144 0
-	leaq	-32(%rbp), %rax
-	movl	$16, %edx
-	movq	%rax, %rsi
-	movl	$.LC16, %edi
-	call	hexDump
-	.loc 1 145 0
-	movl	-20(%rbp), %edx
-	movl	-24(%rbp), %ecx
-	movq	-32(%rbp), %rax
-	movl	%ecx, %esi
-	movq	%rax, %rdi
+	movsd	.LC10(%rip), %xmm1
+	movsd	.LC14(%rip), %xmm0
+	movapd	%xmm1, %xmm2
+	movapd	%xmm0, %xmm1
+	movsd	.LC15(%rip), %xmm0
 	call	test_func
 	movq	%xmm0, %rax
-	movq	%rax, -48(%rbp)
-	.loc 1 147 0
-	leaq	-32(%rbp), %rax
-	movq	%rax, %rdx
-	movl	$16, %esi
-	movl	$.LC17, %edi
-	call	runfunc_dbl
-	movq	%xmm0, %rax
-	movq	%rax, -48(%rbp)
-	.loc 1 148 0
-	leaq	-48(%rbp), %rax
-	movl	$8, %edx
-	movq	%rax, %rsi
-	movl	$.LC18, %edi
-	call	hexDump
-	.loc 1 149 0
-	movq	-48(%rbp), %rax
-	movq	%rax, -56(%rbp)
-	movsd	-56(%rbp), %xmm0
-	movl	$.LC19, %edi
+	movq	%rax, -8(%rbp)
+	.loc 1 145 0
+	movq	-8(%rbp), %rax
+	movq	%rax, -24(%rbp)
+	movsd	-24(%rbp), %xmm0
+	movl	$.LC16, %edi
 	movl	$1, %eax
 	call	printf
-	.loc 1 150 0
+	.loc 1 146 0
 	movl	$0, %eax
-	.loc 1 151 0
-	movq	-8(%rbp), %rcx
-	xorq	%fs:40, %rcx
-	je	.L27
-	call	__stack_chk_fail
-.L27:
+	.loc 1 147 0
 	leave
 	.cfi_def_cfa 7, 8
 	ret
@@ -493,8 +430,24 @@ main:
 	.section	.rodata
 	.align 8
 .LC8:
+	.long	2684354560
+	.long	1072798105
+	.align 8
+.LC9:
+	.long	2684354560
+	.long	1073846681
+	.align 8
+.LC10:
+	.long	1610612736
+	.long	1074423398
+	.align 8
+.LC14:
 	.long	0
-	.long	1076101120
+	.long	1073741824
+	.align 8
+.LC15:
+	.long	0
+	.long	1072693248
 	.text
 .Letext0:
 	.file 2 "/usr/lib/gcc/x86_64-linux-gnu/5/include/stddef.h"
@@ -503,15 +456,15 @@ main:
 	.file 5 "/usr/include/stdio.h"
 	.section	.debug_info,"",@progbits
 .Ldebug_info0:
-	.long	0x4d6
+	.long	0x4a6
 	.value	0x4
 	.long	.Ldebug_abbrev0
 	.byte	0x8
 	.uleb128 0x1
-	.long	.LASF68
+	.long	.LASF66
 	.byte	0xc
-	.long	.LASF69
-	.long	.LASF70
+	.long	.LASF67
+	.long	.LASF68
 	.quad	.Ltext0
 	.quad	.Letext0-.Ltext0
 	.long	.Ldebug_line0
@@ -757,7 +710,7 @@ main:
 	.byte	0xc4
 	.byte	0
 	.uleb128 0xa
-	.long	.LASF71
+	.long	.LASF69
 	.byte	0x4
 	.byte	0x96
 	.uleb128 0x7
@@ -825,57 +778,32 @@ main:
 	.byte	0x8
 	.long	0x2a2
 	.uleb128 0xe
-	.uleb128 0x7
-	.long	.LASF48
-	.byte	0x10
-	.byte	0x1
-	.byte	0x80
-	.long	0x2d0
 	.uleb128 0xf
-	.string	"str"
-	.byte	0x1
-	.byte	0x81
-	.long	0x8f
-	.byte	0
-	.uleb128 0xf
-	.string	"a"
-	.byte	0x1
-	.byte	0x82
-	.long	0x62
-	.byte	0x8
-	.uleb128 0xf
-	.string	"b"
-	.byte	0x1
-	.byte	0x83
-	.long	0x62
-	.byte	0xc
-	.byte	0
-	.uleb128 0x10
-	.long	.LASF63
+	.long	.LASF64
 	.byte	0x1
 	.byte	0x6
 	.quad	.LFB2
 	.quad	.LFE2-.LFB2
 	.uleb128 0x1
 	.byte	0x9c
-	.long	0x342
-	.uleb128 0x11
-	.long	.LASF49
+	.long	0x315
+	.uleb128 0x10
+	.long	.LASF48
 	.byte	0x1
 	.byte	0x6
 	.long	0x8f
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -72
-	.uleb128 0x11
-	.long	.LASF50
+	.uleb128 0x10
+	.long	.LASF49
 	.byte	0x1
 	.byte	0x6
 	.long	0x8d
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -80
-	.uleb128 0x12
+	.uleb128 0x11
 	.string	"len"
 	.byte	0x1
 	.byte	0x6
@@ -883,7 +811,7 @@ main:
 	.uleb128 0x3
 	.byte	0x91
 	.sleb128 -84
-	.uleb128 0x13
+	.uleb128 0x12
 	.string	"i"
 	.byte	0x1
 	.byte	0x7
@@ -891,26 +819,26 @@ main:
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -60
-	.uleb128 0x14
-	.long	.LASF51
+	.uleb128 0x13
+	.long	.LASF50
 	.byte	0x1
 	.byte	0x8
-	.long	0x342
+	.long	0x315
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -48
-	.uleb128 0x13
+	.uleb128 0x12
 	.string	"pc"
 	.byte	0x1
 	.byte	0x9
-	.long	0x352
+	.long	0x325
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -56
 	.byte	0
 	.uleb128 0xb
 	.long	0x3f
-	.long	0x352
+	.long	0x325
 	.uleb128 0xc
 	.long	0x86
 	.byte	0x10
@@ -918,192 +846,186 @@ main:
 	.uleb128 0x6
 	.byte	0x8
 	.long	0x3f
-	.uleb128 0x15
-	.long	.LASF53
+	.uleb128 0x14
+	.long	.LASF52
 	.byte	0x1
 	.byte	0x3b
-	.long	0x39e
+	.long	0x371
 	.quad	.LFB3
 	.quad	.LFE3-.LFB3
 	.uleb128 0x1
 	.byte	0x9c
-	.long	0x39e
-	.uleb128 0x12
-	.string	"s"
-	.byte	0x1
-	.byte	0x3b
-	.long	0x283
-	.uleb128 0x2
-	.byte	0x91
-	.sleb128 -24
-	.uleb128 0x12
+	.long	0x371
+	.uleb128 0x11
 	.string	"a"
 	.byte	0x1
 	.byte	0x3b
-	.long	0x62
+	.long	0x371
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -28
-	.uleb128 0x12
+	.sleb128 -24
+	.uleb128 0x11
 	.string	"b"
 	.byte	0x1
 	.byte	0x3b
-	.long	0x62
+	.long	0x371
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -32
+	.uleb128 0x11
+	.string	"c"
+	.byte	0x1
+	.byte	0x3b
+	.long	0x371
+	.uleb128 0x2
+	.byte	0x91
+	.sleb128 -40
 	.byte	0
 	.uleb128 0x3
 	.byte	0x8
 	.byte	0x4
-	.long	.LASF52
-	.uleb128 0x16
-	.long	.LASF54
+	.long	.LASF51
+	.uleb128 0x14
+	.long	.LASF53
 	.byte	0x1
-	.byte	0x41
-	.long	0x39e
+	.byte	0x46
+	.long	0x371
 	.quad	.LFB4
 	.quad	.LFE4-.LFB4
 	.uleb128 0x1
 	.byte	0x9c
-	.long	0x40b
-	.uleb128 0x12
+	.long	0x3d0
+	.uleb128 0x11
 	.string	"f"
 	.byte	0x1
-	.byte	0x41
+	.byte	0x46
 	.long	0x8d
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -48
-	.uleb128 0x11
-	.long	.LASF55
+	.uleb128 0x10
+	.long	.LASF54
 	.byte	0x1
-	.byte	0x41
+	.byte	0x46
 	.long	0x2d
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -56
-	.uleb128 0x11
-	.long	.LASF56
+	.uleb128 0x10
+	.long	.LASF55
 	.byte	0x1
-	.byte	0x41
-	.long	0x29c
+	.byte	0x46
+	.long	0x3d0
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -64
-	.uleb128 0x14
-	.long	.LASF57
-	.byte	0x1
-	.byte	0x42
-	.long	0x283
-	.uleb128 0x2
-	.byte	0x91
-	.sleb128 -40
-	.uleb128 0x13
+	.uleb128 0x12
 	.string	"ret"
 	.byte	0x1
-	.byte	0x43
-	.long	0x39e
+	.byte	0x47
+	.long	0x371
 	.uleb128 0x2
 	.byte	0x91
 	.sleb128 -32
 	.byte	0
+	.uleb128 0x6
+	.byte	0x8
+	.long	0x371
 	.uleb128 0x15
-	.long	.LASF58
+	.long	.LASF56
 	.byte	0x1
-	.byte	0x60
-	.long	0x39e
+	.byte	0x64
+	.long	0x371
 	.quad	.LFB5
 	.quad	.LFE5-.LFB5
 	.uleb128 0x1
 	.byte	0x9c
-	.long	0x482
-	.uleb128 0x11
+	.long	0x45e
+	.uleb128 0x10
+	.long	.LASF57
+	.byte	0x1
+	.byte	0x64
+	.long	0x283
+	.uleb128 0x3
+	.byte	0x91
+	.sleb128 -88
+	.uleb128 0x10
+	.long	.LASF58
+	.byte	0x1
+	.byte	0x64
+	.long	0x62
+	.uleb128 0x3
+	.byte	0x91
+	.sleb128 -92
+	.uleb128 0x10
 	.long	.LASF59
 	.byte	0x1
-	.byte	0x60
-	.long	0x283
-	.uleb128 0x2
-	.byte	0x91
-	.sleb128 -56
-	.uleb128 0x11
-	.long	.LASF55
-	.byte	0x1
-	.byte	0x60
-	.long	0x62
-	.uleb128 0x2
-	.byte	0x91
-	.sleb128 -60
-	.uleb128 0x11
-	.long	.LASF56
-	.byte	0x1
-	.byte	0x60
+	.byte	0x64
 	.long	0x29c
 	.uleb128 0x3
 	.byte	0x91
-	.sleb128 -72
-	.uleb128 0x14
+	.sleb128 -104
+	.uleb128 0x13
 	.long	.LASF60
 	.byte	0x1
-	.byte	0x61
+	.byte	0x65
 	.long	0x8d
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -32
-	.uleb128 0x14
+	.sleb128 -64
+	.uleb128 0x13
 	.long	.LASF61
 	.byte	0x1
-	.byte	0x61
+	.byte	0x65
 	.long	0x8d
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -24
-	.uleb128 0x14
+	.sleb128 -56
+	.uleb128 0x13
 	.long	.LASF62
 	.byte	0x1
-	.byte	0x62
-	.long	0x39e
+	.byte	0x66
+	.long	0x371
+	.uleb128 0x3
+	.byte	0x91
+	.sleb128 -72
+	.uleb128 0x13
+	.long	.LASF63
+	.byte	0x1
+	.byte	0x68
+	.long	0x45e
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -40
+	.sleb128 -48
 	.byte	0
-	.uleb128 0x17
-	.long	.LASF64
+	.uleb128 0xb
+	.long	0x371
+	.long	0x46e
+	.uleb128 0xc
+	.long	0x86
+	.byte	0x2
+	.byte	0
+	.uleb128 0x16
+	.long	.LASF65
 	.byte	0x1
-	.byte	0x86
+	.byte	0x8c
 	.long	0x62
 	.quad	.LFB6
 	.quad	.LFE6-.LFB6
 	.uleb128 0x1
 	.byte	0x9c
-	.long	0x4ce
-	.uleb128 0x14
-	.long	.LASF65
+	.long	0x49e
+	.uleb128 0x13
+	.long	.LASF63
 	.byte	0x1
-	.byte	0x87
-	.long	0x2a3
+	.byte	0x8d
+	.long	0x371
 	.uleb128 0x2
 	.byte	0x91
-	.sleb128 -48
-	.uleb128 0x14
-	.long	.LASF66
-	.byte	0x1
-	.byte	0x88
-	.long	0x39e
-	.uleb128 0x2
-	.byte	0x91
-	.sleb128 -64
-	.uleb128 0x14
-	.long	.LASF67
-	.byte	0x1
-	.byte	0x89
-	.long	0x8f
-	.uleb128 0x2
-	.byte	0x91
-	.sleb128 -56
+	.sleb128 -24
 	.byte	0
-	.uleb128 0x18
-	.long	.LASF72
+	.uleb128 0x17
+	.long	.LASF70
 	.byte	0x5
 	.byte	0xaa
 	.long	0x257
@@ -1267,21 +1189,6 @@ main:
 	.byte	0
 	.byte	0
 	.uleb128 0xf
-	.uleb128 0xd
-	.byte	0
-	.uleb128 0x3
-	.uleb128 0x8
-	.uleb128 0x3a
-	.uleb128 0xb
-	.uleb128 0x3b
-	.uleb128 0xb
-	.uleb128 0x49
-	.uleb128 0x13
-	.uleb128 0x38
-	.uleb128 0xb
-	.byte	0
-	.byte	0
-	.uleb128 0x10
 	.uleb128 0x2e
 	.byte	0x1
 	.uleb128 0x3f
@@ -1306,11 +1213,26 @@ main:
 	.uleb128 0x13
 	.byte	0
 	.byte	0
-	.uleb128 0x11
+	.uleb128 0x10
 	.uleb128 0x5
 	.byte	0
 	.uleb128 0x3
 	.uleb128 0xe
+	.uleb128 0x3a
+	.uleb128 0xb
+	.uleb128 0x3b
+	.uleb128 0xb
+	.uleb128 0x49
+	.uleb128 0x13
+	.uleb128 0x2
+	.uleb128 0x18
+	.byte	0
+	.byte	0
+	.uleb128 0x11
+	.uleb128 0x5
+	.byte	0
+	.uleb128 0x3
+	.uleb128 0x8
 	.uleb128 0x3a
 	.uleb128 0xb
 	.uleb128 0x3b
@@ -1322,21 +1244,6 @@ main:
 	.byte	0
 	.byte	0
 	.uleb128 0x12
-	.uleb128 0x5
-	.byte	0
-	.uleb128 0x3
-	.uleb128 0x8
-	.uleb128 0x3a
-	.uleb128 0xb
-	.uleb128 0x3b
-	.uleb128 0xb
-	.uleb128 0x49
-	.uleb128 0x13
-	.uleb128 0x2
-	.uleb128 0x18
-	.byte	0
-	.byte	0
-	.uleb128 0x13
 	.uleb128 0x34
 	.byte	0
 	.uleb128 0x3
@@ -1351,7 +1258,7 @@ main:
 	.uleb128 0x18
 	.byte	0
 	.byte	0
-	.uleb128 0x14
+	.uleb128 0x13
 	.uleb128 0x34
 	.byte	0
 	.uleb128 0x3
@@ -1364,6 +1271,33 @@ main:
 	.uleb128 0x13
 	.uleb128 0x2
 	.uleb128 0x18
+	.byte	0
+	.byte	0
+	.uleb128 0x14
+	.uleb128 0x2e
+	.byte	0x1
+	.uleb128 0x3f
+	.uleb128 0x19
+	.uleb128 0x3
+	.uleb128 0xe
+	.uleb128 0x3a
+	.uleb128 0xb
+	.uleb128 0x3b
+	.uleb128 0xb
+	.uleb128 0x27
+	.uleb128 0x19
+	.uleb128 0x49
+	.uleb128 0x13
+	.uleb128 0x11
+	.uleb128 0x1
+	.uleb128 0x12
+	.uleb128 0x7
+	.uleb128 0x40
+	.uleb128 0x18
+	.uleb128 0x2117
+	.uleb128 0x19
+	.uleb128 0x1
+	.uleb128 0x13
 	.byte	0
 	.byte	0
 	.uleb128 0x15
@@ -1404,33 +1338,6 @@ main:
 	.uleb128 0xb
 	.uleb128 0x3b
 	.uleb128 0xb
-	.uleb128 0x27
-	.uleb128 0x19
-	.uleb128 0x49
-	.uleb128 0x13
-	.uleb128 0x11
-	.uleb128 0x1
-	.uleb128 0x12
-	.uleb128 0x7
-	.uleb128 0x40
-	.uleb128 0x18
-	.uleb128 0x2117
-	.uleb128 0x19
-	.uleb128 0x1
-	.uleb128 0x13
-	.byte	0
-	.byte	0
-	.uleb128 0x17
-	.uleb128 0x2e
-	.byte	0x1
-	.uleb128 0x3f
-	.uleb128 0x19
-	.uleb128 0x3
-	.uleb128 0xe
-	.uleb128 0x3a
-	.uleb128 0xb
-	.uleb128 0x3b
-	.uleb128 0xb
 	.uleb128 0x49
 	.uleb128 0x13
 	.uleb128 0x11
@@ -1445,7 +1352,7 @@ main:
 	.uleb128 0x13
 	.byte	0
 	.byte	0
-	.uleb128 0x18
+	.uleb128 0x17
 	.uleb128 0x34
 	.byte	0
 	.uleb128 0x3
@@ -1484,33 +1391,29 @@ main:
 	.string	"_IO_read_ptr"
 .LASF25:
 	.string	"_chain"
-.LASF67:
-	.string	"strarg"
 .LASF7:
 	.string	"size_t"
 .LASF31:
 	.string	"_shortbuf"
-.LASF57:
-	.string	"test_str"
 .LASF19:
 	.string	"_IO_buf_base"
 .LASF47:
 	.string	"long long unsigned int"
-.LASF50:
+.LASF49:
 	.string	"addr"
-.LASF66:
+.LASF63:
 	.string	"test"
 .LASF46:
 	.string	"long long int"
 .LASF4:
 	.string	"signed char"
-.LASF51:
+.LASF50:
 	.string	"buff"
 .LASF26:
 	.string	"_fileno"
 .LASF14:
 	.string	"_IO_read_end"
-.LASF54:
+.LASF53:
 	.string	"call_function_code_dbl"
 .LASF6:
 	.string	"long int"
@@ -1520,15 +1423,15 @@ main:
 	.string	"_IO_buf_end"
 .LASF29:
 	.string	"_cur_column"
-.LASF52:
+.LASF51:
 	.string	"double"
 .LASF28:
 	.string	"_old_offset"
 .LASF33:
 	.string	"_offset"
-.LASF64:
+.LASF65:
 	.string	"main"
-.LASF68:
+.LASF66:
 	.string	"GNU C11 5.4.0 20160609 -mtune=generic -march=x86-64 -g -fstack-protector-strong"
 .LASF42:
 	.string	"_IO_marker"
@@ -1536,11 +1439,13 @@ main:
 	.string	"unsigned int"
 .LASF0:
 	.string	"long unsigned int"
+.LASF58:
+	.string	"arg_s"
 .LASF17:
 	.string	"_IO_write_ptr"
-.LASF59:
+.LASF57:
 	.string	"name"
-.LASF69:
+.LASF67:
 	.string	"runfunc.c"
 .LASF44:
 	.string	"_sbuf"
@@ -1554,22 +1459,20 @@ main:
 	.string	"_flags2"
 .LASF39:
 	.string	"_mode"
-.LASF70:
+.LASF68:
 	.string	"/home/cloud9/workspace/misc/c_utils/runfunc"
-.LASF63:
+.LASF64:
 	.string	"hexDump"
 .LASF10:
 	.string	"sizetype"
-.LASF49:
+.LASF48:
 	.string	"desc"
 .LASF18:
 	.string	"_IO_write_end"
-.LASF71:
+.LASF69:
 	.string	"_IO_lock_t"
 .LASF41:
 	.string	"_IO_FILE"
-.LASF48:
-	.string	"funcargs"
 .LASF45:
 	.string	"_pos"
 .LASF24:
@@ -1578,7 +1481,7 @@ main:
 	.string	"unsigned char"
 .LASF5:
 	.string	"short int"
-.LASF58:
+.LASF56:
 	.string	"runfunc_dbl"
 .LASF30:
 	.string	"_vtable_offset"
@@ -1606,21 +1509,21 @@ main:
 	.string	"__pad5"
 .LASF40:
 	.string	"_unused2"
-.LASF72:
+.LASF70:
 	.string	"stderr"
 .LASF22:
 	.string	"_IO_backup_base"
-.LASF53:
+.LASF52:
 	.string	"test_func"
+.LASF54:
+	.string	"argc"
 .LASF60:
 	.string	"handle"
-.LASF65:
-	.string	"args"
 .LASF55:
-	.string	"arg_s"
+	.string	"argv"
 .LASF16:
 	.string	"_IO_write_base"
-.LASF56:
+.LASF59:
 	.string	"arg_v"
 .LASF62:
 	.string	"result"
