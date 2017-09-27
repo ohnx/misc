@@ -16,7 +16,7 @@ typedef struct _hashmap_entry_list {
 } hashmap_entry_list;
 
 typedef struct _hashmap {
-    unsigned short (*hash_func)(const unsigned char,long);
+    unsigned short (*hash_func)(const unsigned char *,long);
     unsigned long num_entry;
     unsigned long bucketsize;
     hashmap_entry_list *buckets;

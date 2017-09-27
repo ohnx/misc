@@ -118,7 +118,7 @@ hashmap *hashmap_new() {
 void hashmap_resize(hashmap *in) {
     hashmap_entry_list *bucketsold, *hel;
     hashmap_entry *he;
-    int i;
+    int i, j;
     
     if (in->bucketsize > 256) return;
     
@@ -135,9 +135,8 @@ void hashmap_resize(hashmap *in) {
         for (j = 0; j < hel->vlen; j++) {
             he = &hel->values[j];
             
-            /* call the function */
-            if (hashmap_put(in, he->key, he->value))
-                return -1;
+            /* call the function TODO: Catch exception */
+            hashmap_put(in, he->key, he->value);
         }
     }
     free(bucketsold);
