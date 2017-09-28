@@ -175,6 +175,37 @@ void hashmap_put(hashmap *in, const char *key, void *value) {
     in->num_entry++;
 }
 
+void *hashmap_remove(hashmap *in, const char *key) {
+    unsigned short hash;
+    hashmap_entry_list *hel;
+    hashmap_entry *he;
+    void *tmp;
+    int i;
+    
+    /* get hash value */
+    hash = in->hash_func((const unsigned char *)key, (long)strlen(key));
+    hel = &in->buckets[hash];
+    
+    /* loop through all the key/value pairs with that hash */
+    for (i = 0; i < hel->vlen; i++) {
+        he = &hel->values[i];
+        if (!strcmp(key, he->key)) goto found;
+    }
+    return NULL;
+    
+    /* success */
+    found:
+    /* temporarily store the value */
+    tmp = he->value;
+    /* free the key */
+    free(he->key);
+    /* copy over the values past this to over this */
+    memcpy(hel->values + i, hel->values + i + 1, sizeof(hashmap_entry) * (hel->vlen - i));
+    /* decrease the length */
+    hel->vlen--;
+    return tmp;
+}
+
 void *hashmap_get(hashmap *in, const char *key) {
     unsigned short hash;
     hashmap_entry_list *hel;

@@ -15,15 +15,19 @@ int main() {
     hashmap *hm;
     int i;
     int n = 1337;
-    
+
     hm = hashmap_new();
-    
-    for (int i = 0; i < 1000000; i++) {
+
+    hashmap_put(hm, "test", hm);
+
+    for (int i = 0; i < 1000; i++) {
         sprintf(buf, "-%d-", i);
         hashmap_put(hm, buf, &n);
     }
-    
-    for (int i = 0; i < 1000000; i++) {
+
+    hashmap_remove(hm, "test");
+
+    for (int i = 0; i < 1000; i++) {
         sprintf(buf, "-%d-", i);
         if (n != *(int *)hashmap_get(hm, buf)) {
             printf("Test failed!!!\n");
