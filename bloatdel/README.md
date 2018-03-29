@@ -2,6 +2,12 @@
 
 remove bloatware from windows 10 using powershell (run as administrator)
 
+Don't forget to enable scripts:
+
+```
+Set-ExecutionPolicy Unrestricted
+```
+
 Be sure to also remove re-installing using:
 
 ```
