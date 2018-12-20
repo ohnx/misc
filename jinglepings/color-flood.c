@@ -12,7 +12,8 @@
 
 void color2ip(char *rgb_hex, struct in6_addr *addr) {
     /* this is the ip to use for 2018 - see https://jinglepings.com */
-    static char ip[] = {'2','0','0','1',':','4','c','0','8',':','2','0','2','8',':','2','0','1','9',':',':','0','0',':','0','0',':','0','0',0x0};
+    char ip[] = {'2','0','0','1',':','4','c','0','8',':','2','0','2','8',':','2','0','1','9',':',':','0','0',':','0','0',':','0','0',0x0};
+    char buf[INET6_ADDRSTRLEN];
     size_t len = strlen(rgb_hex);
     int rc;
 
@@ -44,7 +45,8 @@ void color2ip(char *rgb_hex, struct in6_addr *addr) {
     /* convert string to ipv6 */
     rc = inet_pton(AF_INET6, ip, addr);
     if (rc != 1) goto die;
-    fprintf(stderr, "sending data to `%s`\n", ip);
+    inet_ntop(AF_INET6, addr, buf, INET6_ADDRSTRLEN);
+    fprintf(stderr, "sending data to `%s`\n", buf);
     return;
 
 die:
@@ -157,7 +159,7 @@ struct ipv6_header {
 struct ipv6_pseudoheader {
     struct in6_addr src;
     struct in6_addr dst;
-    uint32_t length;
+    uint16_t length;
     unsigned int zeroes :24;
     uint8_t next_header;
 } __attribute__((packed));
@@ -174,7 +176,27 @@ struct icmpv6_echo_request {
 } __attribute__((packed));
 
 uint32_t icmpv6_calc_checksum(unsigned char *x, size_t n) {
-    return 0;
+   uint32_t   sum;
+   uint16_t * ptr;
+   int        words;
+
+   sum = 0;
+   ptr   = (uint16_t *) x;
+   words = (n + 1) / 2; // +1 & truncation on / handles any odd byte at end
+
+   /*
+    *   As we're using a 32 bit int to calculate 16 bit checksum
+    *   we can accumulate carries in top half of DWORD and fold them in later
+    */
+   while (words--) sum += *ptr++;
+
+   /*
+    *   Fold in any carries
+    *   - the addition may cause another carry so we loop
+    */
+   while (sum & 0xffff0000) sum = (sum >> 16) + (sum & 0xffff);
+
+   return ~((uint16_t)sum);
 }
 
 int main(int argc, char **argv) {
@@ -187,6 +209,9 @@ int main(int argc, char **argv) {
     struct ipv6_pseudoheader *ip_pseudoheader;
     struct icmpv6_header *icmp_header, *icmp_pseudoheader;
     struct icmpv6_echo_request *icmp_payload, *icmp_pseudopayload;
+
+    /* clear initial value */
+    memset(&dest_addr, 0, sizeof(dest_addr));
 
     /* check usage */
     switch (argc) {
@@ -211,9 +236,9 @@ int main(int argc, char **argv) {
 
     /* allocate space for the packet */
     packet_len = sizeof(struct ipv6_header) + sizeof(struct icmpv6_header) + sizeof(struct icmpv6_echo_request);
-    packet = malloc(sizeof(packet_len));
+    packet = malloc(packet_len);
     checksum_len = sizeof(struct ipv6_pseudoheader) + sizeof(struct icmpv6_header) + sizeof(struct icmpv6_echo_request);
-    checksum = malloc(sizeof(packet_len));
+    checksum = malloc(checksum_len);
     if (!packet || !checksum) {
         fprintf(stderr, "out of memory error");
         close(fd);
@@ -261,10 +286,12 @@ int main(int argc, char **argv) {
     icmp_header->code = 0; /* code = 0 */
     /* hold off on checksum calculation for now */
 
+    /* set values for icmpv6 ping data */
+    icmp_payload->identifier = 0xefbe; /* idk, it's random */
+
     n = 0;
     do {
         /* set values for icmpv6 ping data */
-        icmp_payload->identifier = 0xbeef; /* idk, it's random */
         icmp_payload->seqnum = htons(n & 0xFFFF); /* idk, it's random */
 
         /* ok, now calculate checksum */
