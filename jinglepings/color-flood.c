@@ -133,8 +133,9 @@ die:
 #undef die
 
 void print_usage(char *prgrm) {
-    fprintf(stderr, "Usage: %s [color in hex form]\n", prgrm);
+    fprintf(stderr, "Usage: %s [x?] [y?] [color in hex form]\n", prgrm);
     fprintf(stderr, "e.g. %s FFFFFF\n", prgrm);
+    fprintf(stderr, "     %s 10 10 FFFFFF\n", prgrm);
 }
 
 /* yes, i know netinet exists... it's just easier to do it this way. */
@@ -150,6 +151,15 @@ struct ipv6_header {
     uint8_t hop_limit;
     struct in6_addr src;
     struct in6_addr dst;
+} __attribute__((packed));
+
+/* used for checksum calculation */
+struct ipv6_pseudoheader {
+    struct in6_addr src;
+    struct in6_addr dst;
+    uint32_t length;
+    unsigned int zeroes :24;
+    uint8_t next_header;
 } __attribute__((packed));
 
 struct icmpv6_header {
@@ -172,19 +182,26 @@ int main(int argc, char **argv) {
     struct sockaddr_in6 dest_addr;
     int fd, rc;
     size_t packet_len, checksum_len, n;
-    unsigned char *packet;
+    unsigned char *packet, *checksum;
     struct ipv6_header *ip_header;
-    struct icmpv6_header *icmp_header;
-    struct icmpv6_echo_request *icmp_payload;
+    struct ipv6_pseudoheader *ip_pseudoheader;
+    struct icmpv6_header *icmp_header, *icmp_pseudoheader;
+    struct icmpv6_echo_request *icmp_payload, *icmp_pseudopayload;
 
     /* check usage */
-    if (argc != 2) {
+    switch (argc) {
+    case 2:
+        /* convert the hex color to the correct ip */
+        color2ip(argv[1], &(dest_addr.sin6_addr));
+        break;
+    case 4:
+        fprintf(stderr, "nyi\n");
+        exit(__LINE__);
+        break;
+    default:
         print_usage(argv[0]);
         exit(__LINE__);
     }
-
-    /* convert the hex color to the correct ip */
-    color2ip(argv[1], &(dest_addr.sin6_addr));
 
     /* fetch own IP */
     get_own_ip(&src_addr);
@@ -195,16 +212,25 @@ int main(int argc, char **argv) {
     /* allocate space for the packet */
     packet_len = sizeof(struct ipv6_header) + sizeof(struct icmpv6_header) + sizeof(struct icmpv6_echo_request);
     packet = malloc(sizeof(packet_len));
-    if (!packet) {
+    checksum_len = sizeof(struct ipv6_pseudoheader) + sizeof(struct icmpv6_header) + sizeof(struct icmpv6_echo_request);
+    checksum = malloc(sizeof(packet_len));
+    if (!packet || !checksum) {
         fprintf(stderr, "out of memory error");
+        close(fd);
+        free(packet);
+        free(checksum);
         exit(__LINE__);
     }
     memset(packet, 0, packet_len);
+    memset(checksum, 0, checksum_len);
 
     /* set the correct struct pointers */
     ip_header = (struct ipv6_header *)packet;
+    ip_pseudoheader = (struct ipv6_pseudoheader *)checksum;
     icmp_header = (struct icmpv6_header *)(ip_header + 1);
+    icmp_pseudoheader = (struct icmpv6_header *)(ip_pseudoheader + 1);
     icmp_payload = (struct icmpv6_echo_request *)(icmp_header + 1);
+    icmp_pseudopayload = (struct icmpv6_echo_request *)(icmp_pseudoheader + 1);
 
     /* set the values for the ipv6 header */
 #if 0
@@ -222,6 +248,13 @@ int main(int argc, char **argv) {
     ip_header->src = src_addr;
     ip_header->dst = dest_addr.sin6_addr;
 
+    /* set values for the ipv6 pseudoheader */
+    ip_pseudoheader->src = ip_header->src;
+    ip_pseudoheader->dst = ip_header->dst;
+    ip_pseudoheader->length = htons(sizeof(struct ipv6_header)); /* Upper-Layer Packet Length */
+    /* (leave zeroes the way they are) */
+    ip_pseudoheader->next_header = ip_header->next_header;
+
     /* set values for the icmpv6 header */
     /* see https://tools.ietf.org/html/rfc4443#section-4.1 */
     icmp_header->type = 128; /* type = 128 */
@@ -235,9 +268,10 @@ int main(int argc, char **argv) {
         icmp_payload->seqnum = htons(n & 0xFFFF); /* idk, it's random */
 
         /* ok, now calculate checksum */
-        checksum_len = sizeof(ip_header->src) + sizeof(ip_header->dst);
-        checksum_len += sizeof(struct icmpv6_header) + sizeof(struct icmpv6_echo_request);
-        icmp_header->checksum = icmpv6_calc_checksum((unsigned char *)(&ip_header->src), checksum_len); /* htons is not necessary since the checksum function does it already */
+        icmp_header->checksum = 0;
+        *icmp_pseudoheader = *icmp_header;
+        *icmp_pseudopayload = *icmp_payload;
+        icmp_header->checksum = icmpv6_calc_checksum(checksum, checksum_len); /* htons is not necessary since the checksum function does it already */
 
         /* done, we have a fully formed packet! time to send it... */
         rc = sendto(fd, packet, packet_len, 0, (struct sockaddr *)(&dest_addr), sizeof(dest_addr));
@@ -253,6 +287,7 @@ int main(int argc, char **argv) {
     /* done */
     close(fd);
     free(packet);
+    free(checksum);
 
     return 0;
 }
