@@ -10,9 +10,9 @@ static int crc8_hinit = 0;
 void crc8_init() {
     int dividend;
     unsigned char bit, remainder;
-    
+
     crc8_hinit = 1;
-    
+
     /* Compute the remainder of each possible dividend. */
     for (dividend = 0; dividend < 256; dividend++) {
         /* Start with the dividend followed by zeros. */
@@ -36,9 +36,9 @@ void crc8_init() {
 unsigned short crc8_block(const unsigned char *bytes, long byteLen) {
     long rpos = 0;
     unsigned char remainder = 0, data;
-    
+
     if (!crc8_hinit) crc8_init();
-    
+
     /* Divide the message by the polynomial, a byte at a time. */
     for (rpos = 0; rpos < byteLen; ++rpos) {
         data = bytes[rpos] ^ remainder;
@@ -87,7 +87,7 @@ static const unsigned short table16[256] = {
 
 unsigned short crc16_block(const unsigned char *bytes, long byteLen) {
     unsigned char remainder = 0;
-    
+
     while (byteLen--)
         remainder = (remainder << 8) ^ table16[((remainder >> 8) ^ *bytes++)];
 
@@ -105,7 +105,7 @@ hashmap *hashmap_new() {
     /* clear initial values */
     ret = calloc(1, sizeof(hashmap));
     buckets = calloc(256, sizeof(hashmap_entry));
-    
+
     if (ret == NULL || buckets == NULL) return NULL;
 
     ret->hash_func = crc8_block;
@@ -119,14 +119,14 @@ void hashmap_resize(hashmap *in) {
     hashmap_entry_list *bucketsold, *hel;
     hashmap_entry *he;
     int i, j;
-    
+
     if (in->bucketsize > 256) return;
-    
+
     bucketsold = in->buckets;
     in->bucketsize = 65536;
     in->hash_func = crc16_block;
     in->buckets = calloc(65536, sizeof(hashmap_entry));
-    
+
     /* loop through all the buckets to copy over */
     for (i = 0; i < 256; i++) {
         hel = &bucketsold[i];
@@ -134,13 +134,13 @@ void hashmap_resize(hashmap *in) {
         /* loop through all the key/value pairs */
         for (j = 0; j < hel->vlen; j++) {
             he = &hel->values[j];
-            
+
             /* call the function TODO: Catch exception */
             hashmap_put(in, he->key, he->value);
         }
     }
     free(bucketsold);
-    
+
     /* at this point, everything has been copied over */
 }
 
@@ -148,11 +148,12 @@ void hashmap_put(hashmap *in, const char *key, void *value) {
     unsigned short hash;
     hashmap_entry_list *hel;
     hashmap_entry *he;
-    
+    size_t l;
+
     /* get hash value */
     hash = in->hash_func((const unsigned char *)key, (long)strlen(key));
     hel = &in->buckets[hash];
-    
+
     /* reallocate memory if necessary */
     if (hel->vroom < ++(hel->vlen)) {
         hel->vroom = (hel->vroom == 0 ? 4 : hel->vroom*2);
@@ -161,16 +162,20 @@ void hashmap_put(hashmap *in, const char *key, void *value) {
         if (he == NULL) {
             return; /* TODO: Throw exception */
         }
-        
+
         hel->values = he;
     }
-    
+
     /* jump to end of hashmap entry list */
     he = &hel->values[hel->vlen-1];
-    
-    he->key = strdup(key);
+
+    /* store the key, value in the hashmap */
+    l = strlen(key) + 1;
+    he->key = malloc(l);
+    if (he->key)
+        memcpy(he->key, key, l);
     he->value = value;
-    
+
     /* success */
     in->num_entry++;
 }
@@ -181,18 +186,18 @@ void *hashmap_remove(hashmap *in, const char *key) {
     hashmap_entry *he;
     void *tmp;
     int i;
-    
+
     /* get hash value */
     hash = in->hash_func((const unsigned char *)key, (long)strlen(key));
     hel = &in->buckets[hash];
-    
+
     /* loop through all the key/value pairs with that hash */
     for (i = 0; i < hel->vlen; i++) {
         he = &hel->values[i];
         if (!strcmp(key, he->key)) goto found;
     }
     return NULL;
-    
+
     /* success */
     found:
     /* temporarily store the value */
@@ -211,18 +216,18 @@ void *hashmap_get(hashmap *in, const char *key) {
     hashmap_entry_list *hel;
     hashmap_entry *he;
     int i;
-    
+
     /* get hash value */
     hash = in->hash_func((const unsigned char *)key, (long)strlen(key));
     hel = &in->buckets[hash];
-    
+
     /* loop through all the key/value pairs with that hash */
     for (i = 0; i < hel->vlen; i++) {
         he = &hel->values[i];
         if (!strcmp(key, he->key)) goto found; /* found exact key */
     }
     return NULL;
-    
+
     /* success */
     found:
     return he->value;
@@ -232,7 +237,7 @@ int hashmap_iterate(hashmap *in, hashmap_iterator iter, void *context) {
     hashmap_entry_list *hel;
     hashmap_entry *he;
     int i, j;
-    
+
     /* loop through all the buckets */
     for (i = 0; i < in->bucketsize; i++) {
         hel = &in->buckets[i];
@@ -240,13 +245,13 @@ int hashmap_iterate(hashmap *in, hashmap_iterator iter, void *context) {
         /* loop through all the key/value pairs */
         for (j = 0; j < hel->vlen; j++) {
             he = &hel->values[j];
-            
+
             /* call the function */
             if (iter(context, he->key, he->value))
                 return -1;
         }
     }
-    
+
     return 0;
 }
 
@@ -254,19 +259,19 @@ void hashmap_empty(hashmap *in) {
     hashmap_entry_list *hel;
     hashmap_entry *he;
     int i, j;
-    
+
     /* loop through all the buckets */
     for (i = 0; i < in->bucketsize; i++) {
         hel = &in->buckets[i];
-        
+
         /* loop through all the key/value pairs */
         for (j = 0; j < hel->vlen; j++) {
             he = &hel->values[j];
-            
+
             /* free the key */
             free(he->key);
         }
-        
+
         /* reset the key/value pairs array */
         free(hel->values);
         hel->values = NULL;
@@ -278,8 +283,44 @@ void hashmap_empty(hashmap *in) {
 void hashmap_destroy(hashmap *in) {
     /* empty hashmap */
     hashmap_empty(in);
-    
+
     /* clean up bucket storage */
     free(in->buckets);
     free(in);
 }
+
+/* debug code - to use, run:
+ * `gcc hashmap.c -I.  -Wall -Werror -g -ansi -pedantic -D__HASHMAP_DEBUG` */
+#ifdef __HASHMAP_DEBUG
+#include <stdio.h>
+#include "hashmap.h"
+
+int main() {
+    char buf[16];
+    hashmap *hm;
+    int i;
+    int n = 1337;
+
+    hm = hashmap_new();
+
+    hashmap_put(hm, "test", hm);
+
+    for (i = 0; i < 1000; i++) {
+        sprintf(buf, "-%d-", i);
+        hashmap_put(hm, buf, &n);
+    }
+
+    hashmap_remove(hm, "test");
+
+    for (i = 0; i < 1000; i++) {
+        sprintf(buf, "-%d-", i);
+        if (n != *(int *)hashmap_get(hm, buf)) {
+            printf("Test failed!!!\n");
+            return -1;
+        }
+    }
+
+    hashmap_destroy(hm);
+    return 0;
+}
+#endif
